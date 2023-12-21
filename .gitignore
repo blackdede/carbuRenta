@@ -1,0 +1,4 @@
+*.xml
+*.csv
+graph_data/*.json
+__pycache__/
