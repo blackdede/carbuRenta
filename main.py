@@ -7,6 +7,8 @@ import requests
 from models.GasStation import GasStation
 from models.HoursRange import HoursRange
 from models.OpeningHours import OpeningHours
+import json
+
 
 GRAPH_DIR = "graph_data/"
 
@@ -35,7 +37,7 @@ def parse_data() -> None:
     print("Send API request for each station name")
     gas_stations = []
     count = 0
-    maxx = 1000
+    maxx = 9999999
     station_ids = [int(pdv.get("id")) for pdv in root]
     station_ids = station_ids[:maxx]
     
@@ -80,7 +82,7 @@ def parse_data() -> None:
             if prix_element.attrib:
                 fuel_type = prix_element.get("nom")
                 price = float(prix_element.get("valeur"))
-                update_date = prix_element.get("maj")
+                update_date = str(datetime.strptime(prix_element.get("maj"), "%Y-%m-%dT%H:%M:%S").strftime("%Y-%m-%d"))
 
                 if fuel_type not in gas_price_history:
                     gas_price_history[fuel_type] = {}
@@ -111,6 +113,8 @@ def parse_data() -> None:
     return gas_stations
 
 def create_json_heatmap(gas_stations):
+    current_datetime = datetime.now()
+    date_strings = [(current_datetime - timedelta(days=day_number)).strftime("%Y-%m-%d") for day_number in range(365, 0, -1)]
     result_json = {"stations": []}
     print("Saving result to JSON")
     with tqdm(total=len(gas_stations), desc="Processing gas stations") as pbar:
@@ -127,22 +131,23 @@ def create_json_heatmap(gas_stations):
                 "carburants": {},
             }
 
-            current_datetime = datetime.now()
             for fuel_type, price_history in gas_station.gas_price_history.items():
                 station_json["carburants"][fuel_type] = []
-                prices = [
-                    price_history.get(
-                        (current_datetime - timedelta(days=day_number)).strftime("%Y-%m-%d"),
-                        station_json["carburants"][fuel_type][-1] if station_json["carburants"][fuel_type] else 0,
-                    )
-                    for day_number in range(365)
-                ]
-                station_json["carburants"][fuel_type] = prices
+
+                for date_key in date_strings:
+
+                    # Check if the date is in the price history
+                    if date_key in price_history:
+                        price = price_history[date_key]
+                    else:
+                        # If the date is not in the history, use the previous value or 0 if there is no previous value
+                        price = station_json["carburants"][fuel_type][-1] if station_json["carburants"][fuel_type] else 0
+
+                    station_json["carburants"][fuel_type].append(price)
 
             result_json["stations"].append(station_json)
             pbar.update(1)
 
-    import json
     # Save to file
     with open(GRAPH_DIR + 'data.json', 'w') as outfile:
         json.dump(result_json, outfile)
