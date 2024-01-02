@@ -12,22 +12,36 @@ import json
 
 GRAPH_DIR = "graph_data/"
 
-def get_name_station(id):
-    response = requests.get(f"https://www.prix-carburants.gouv.fr/map/recuperer_infos_pdv/{id}", headers={"x-requested-with": "XMLHttpRequest"})
+def get_name_station(id) -> str or None:
+    try:
+        response = requests.get(f"https://www.prix-carburants.gouv.fr/map/recuperer_infos_pdv/{id}", headers={"x-requested-with": "XMLHttpRequest"})
 
-    if response.status_code == 200:
-        html_content = response.text
+        if response.status_code == 200:
+            html_content = response.text
 
-        pattern = re.compile(r'<strong>(.*?)</strong>', re.DOTALL)
-        match = pattern.search(html_content)
+            pattern = re.compile(r'<strong>(.*?)</strong>', re.DOTALL)
+            match = pattern.search(html_content)
 
-        if match:
-            strong_text = match.group(1)
-            return strong_text
-    return None
+            if match:
+                strong_text = match.group(1)
+                return strong_text
+    except:
+        return None
 
 def get_station_name(station_id):
     return station_id, get_name_station(station_id)
+
+def get_coordinate(angle: str, number_len: int) -> float:
+    """Converts a string representing an angle to a float by keeping last 5 digits as decimals
+    >>> get_coordinate("4620100", 2)
+    46.201
+    >>> get_coordinate("519800", 1)
+    5.198
+    >>> get_coordinate("4584829.0858556", 1)
+    4.584829
+    """
+    a = angle.split(".")[0]
+    return float(a[:number_len] + "." + a[number_len:])
 
 def parse_data() -> None:
     file_name = "PrixCarburants_annuel_2023.xml"
@@ -45,14 +59,17 @@ def parse_data() -> None:
         station_names = list(tqdm(executor.map(get_station_name, station_ids), total=len(station_ids)))
     
     for pdv, (station_id, name) in zip(root, station_names):
-        address = pdv.find("adresse").text
-        latitude = (pdv.get("latitude"))
-        longitude = (pdv.get("longitude"))
-        postal_code = pdv.get("cp")
-        city = pdv.find("ville").text
-        opening_hours = None
-        is_always_open = False
-        gas_price_history = {}
+        try:
+            address = pdv.find("adresse").text
+            latitude = get_coordinate(pdv.get("latitude"), 2)
+            longitude = get_coordinate(pdv.get("longitude"), 1)
+            postal_code = pdv.get("cp")
+            city = pdv.find("ville").text
+            opening_hours = None
+            is_always_open = False
+            gas_price_history = {}
+        except:
+            continue
 
         horaires_element = pdv.find("horaires")
         if horaires_element is not None:
