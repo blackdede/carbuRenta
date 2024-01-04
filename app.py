@@ -10,6 +10,8 @@ app = Dash(__name__)
 # Add a list of fuel types available in your dataset
 fuel_types = ["Gazole", "SP95", "E85", "E10", "SP98"]
 
+days_len = len(heatmap_dataframe['stations'][0]['carburants'][fuel_types[0]])
+
 # Create dropdown for fuel selection
 fuel_dropdown = dcc.Dropdown(
     id='fuel-dropdown',
@@ -21,7 +23,7 @@ fuel_dropdown = dcc.Dropdown(
 slider = dcc.Slider(
     id='price-slider',
     min=0,
-    max=len(heatmap_dataframe['stations'][0]['carburants'][fuel_types[0]]) - 1,
+    max=days_len - 1,
     marks={i: str(i) for i in range(len(heatmap_dataframe['stations'][0]['carburants'][fuel_types[0]]))},
     value=0,  # Default value
 )
@@ -36,7 +38,39 @@ app.layout = html.Div([
     # Update the graph based on dropdown and slider values
     dcc.Graph(id='heatmap'),
     dcc.Graph(id='histogram'),
+    dcc.Graph(id='piechart')
 ])
+
+@app.callback(
+    Output('piechart', 'figure'),
+    [Input('price-slider', 'value')]
+)
+def update_piechart(selected_price_index):
+    """
+    Grpahique en camembert qui montre le prix moyen de chaque carburant pour le jour selectionné
+    """
+    gas_average_prices = [0] * len(fuel_types)
+    stations_lens = [0] * len(fuel_types)
+
+    for station in heatmap_dataframe['stations']:
+        for i in range(len(fuel_types)):
+            if fuel_types[i] in station['carburants']:
+                stations_lens[i] += 1
+                gas_average_prices[i] += station['carburants'][fuel_types[i]][selected_price_index]
+
+    for i in range(len(fuel_types)):
+        gas_average_prices[i] /= stations_lens[i]
+
+    df = pd.DataFrame(
+        {
+            'carburant': fuel_types,
+            'prix': gas_average_prices
+        }
+    )
+
+    fig = px.pie(df, values='prix', names='carburant', title=f'Prix moyen des carburants il y à {days_len - selected_price_index} jour(s)')
+
+    return fig
 
 @app.callback(
     Output('histogram', 'figure'),
@@ -72,8 +106,7 @@ def update_histogram(selected_fuel):
 # Define callback to update the heatmap based on dropdown and slider values
 @app.callback(
     Output('heatmap', 'figure'),
-    [Input('fuel-dropdown', 'value'),
-     Input('price-slider', 'value')]
+    [Input('fuel-dropdown', 'value'), Input('price-slider', 'value')]
 )
 def update_heatmap(selected_fuel, selected_price_index):
     # Afficher sur une heatmap de densitée les stations les moins chères
