@@ -38,7 +38,8 @@ app.layout = html.Div([
     # Update the graph based on dropdown and slider values
     dcc.Graph(id='heatmap'),
     dcc.Graph(id='histogram'),
-    dcc.Graph(id='piechart')
+    dcc.Graph(id='piechart'),
+    dcc.Graph(id='markersmap')
 ])
 
 @app.callback(
@@ -148,43 +149,73 @@ def update_heatmap(selected_fuel, selected_price_index):
                         zoom=4,
                         mapbox_style="open-street-map",
                         title=f'Moitié des stations avec le prix du {selected_fuel} le plus bas')
-
-    # fig = go.Figure(data=go.Scattergeo(
-    #     locationmode="ISO-3",
-    #     lon = df['longitude'],
-    #     lat = df['latitude'],
-    #     text = df['price'],
-    #     mode = 'markers',
-    #     marker = dict(
-    #         size = 8,
-    #         opacity = 0.8,
-    #         reversescale = True,
-    #         autocolorscale = False,
-    #         symbol = 'square',
-    #         line = dict(
-    #             width=1,
-    #             color='rgba(102, 102, 102)'
-    #         ),
-    #         colorscale = 'Blues',
-    #         cmin = 0,
-    #         color = df['price'],
-    #         cmax = df['price'].max(),
-    #         colorbar_title=f'Prix du {selected_fuel}'
-    #     )))
-
-    # fig.update_layout(
-    #     title = 'Prix du carburant par station',
-    #     geo = dict(
-    #         scope='europe',
-    #         showland = True,
-    #         landcolor = "rgb(250, 250, 250)",
-    #         subunitcolor = "rgb(217, 217, 217)",
-    #         countrycolor = "rgb(217, 217, 217)",
-    #         countrywidth = 0.5,
-    #         subunitwidth = 0.5,
-    #     ),
-    # )
     
+    return fig
+
+@app.callback(
+    Output('markersmap', 'figure'),
+    [Input('fuel-dropdown', 'value'), Input('price-slider', 'value')]
+)
+def update_markersmap(selected_fuel, selected_price_index):
+    default_price = 0.0
+    bound_top_left = (48.90415749721205, 2.450568379885376)
+    bound_bottom_right = (48.79039931828495, 2.682282385717415)
+
+    limited_stations = []
+
+    for station in heatmap_dataframe['stations']:
+        if selected_fuel in station['carburants'] and len(station['carburants'][selected_fuel]) > selected_price_index:
+            if station['latitude'] <= bound_top_left[0] and station['latitude'] >= bound_bottom_right[0] and station['longitude'] >= bound_top_left[1] and station['longitude'] <= bound_bottom_right[1]:
+                limited_stations.append(station)
+
+    df = pd.DataFrame(
+        [
+        [
+            station['latitude'] if station['latitude'] <= 90 and station['latitude'] >= -90 else 0,
+            station['longitude'] if station['longitude'] <= 180 and station['longitude'] >= -180 else 0,
+            station['carburants'][selected_fuel][selected_price_index] if selected_fuel in station['carburants'] and len(station['carburants'][selected_fuel]) > selected_price_index else default_price
+        ] for station in limited_stations
+    ],
+    columns=['latitude', 'longitude', 'price'])
+
+    fig = go.Figure(data=go.Scattergeo(
+        locationmode="ISO-3",
+        lon = df['longitude'],
+        lat = df['latitude'],
+        text = df['price'],
+        mode = 'markers',
+        marker = dict(
+            size = 8,
+            opacity = 0.8,
+            reversescale = True,
+            autocolorscale = False,
+            symbol = 'square',
+            line = dict(
+                width=1,
+                color='rgba(102, 102, 102)'
+            ),
+            colorscale = 'Blues',
+            cmin = 0,
+            color = df['price'],
+            cmax = df['price'].max(),
+            colorbar_title=f'Prix du {selected_fuel}'
+        )))
+
+    fig.update_layout(
+        title = 'Carte des stations autour de ESIEE Paris, colorées par prix',
+        geo = dict(
+            scope='europe',
+            showland = True,
+            landcolor = "rgb(250, 250, 250)",
+            subunitcolor = "rgb(217, 217, 217)",
+            countrycolor = "rgb(217, 217, 217)",
+            countrywidth = 0.5,
+            subunitwidth = 0.5, 
+            projection_scale=400,
+            center=dict(lat=48.847, lon=2.549),
+        ),
+    )
+
     return fig
 
 if __name__ == '__main__':
