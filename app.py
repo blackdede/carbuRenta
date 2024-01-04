@@ -28,6 +28,31 @@ slider = dcc.Slider(
     value=0,  # Default value
 )
 
+def get_icicle():
+    """
+    Carte des noms de stations, afin de voir les marques qui ressortent le plus
+    """
+    station_names = {}
+
+    for station in heatmap_dataframe['stations']:
+        if station['name'] in station_names:
+            station_names[station['name']] += 1
+        else:
+            station_names[station['name']] = 1
+
+    df = pd.DataFrame(
+        {
+            'name': list(station_names.keys()),
+            'count': list(station_names.values())
+        }
+    )
+
+    fig = px.icicle(df, path=['name'], values='count', title='Nombre de stations par marque')
+    fig.update_traces(root_color="lightgrey")
+    fig.update_layout(margin=dict(l=40, r=40, t=40, b=40))
+
+    return fig
+
 app.layout = html.Div([
     html.H1(children='Carburenta - Prix des carburants en France 🐀', style={'textAlign': 'center'}),
     
@@ -39,7 +64,8 @@ app.layout = html.Div([
     dcc.Graph(id='heatmap'),
     dcc.Graph(id='histogram'),
     dcc.Graph(id='piechart'),
-    dcc.Graph(id='markersmap')
+    dcc.Graph(id='markersmap'),
+    dcc.Graph(id='icicle', figure=get_icicle())
 ])
 
 @app.callback(
