@@ -76,40 +76,45 @@ def update_histogram(selected_fuel):
      Input('price-slider', 'value')]
 )
 def update_heatmap(selected_fuel, selected_price_index):
-    # TODO: Afficher uniquement les stations les moins chères pour chaque carburant, vu qu'il s'agit d'une carte de densité dont la couleur ne reflète pas le prix
+    # Afficher sur une heatmap de densitée les stations les moins chères
+    # Il s'agit d'une heatmap de densité, on ne peut pas régler la couleur en fonction du prix. On ne met donc pas toutes les stations car la carte est trop similaire peu importe le jour selectionné.
+    
+    average_price = 0.0
+    stations_len = 0
+
+    for station in heatmap_dataframe['stations']:
+        if selected_fuel in station['carburants']:
+            stations_len += 1
+            average_price += station['carburants'][selected_fuel][selected_price_index]
+
+    average_price /= stations_len
+
+    stations = []
+
+    for station in heatmap_dataframe['stations']:
+        if selected_fuel in station['carburants']:
+            if station['carburants'][selected_fuel][selected_price_index] <= average_price:
+                stations.append(station)
 
     # Create a dataframe like a CSV with latitude, longitude and price columns for each station
-    default_price = 0.0
     df = pd.DataFrame(
-        [
-        [
-            station['latitude'] if station['latitude'] <= 90 and station['latitude'] >= -90 else 0,
-            station['longitude'] if station['longitude'] <= 180 and station['longitude'] >= -180 else 0,
-            station['carburants'][selected_fuel][selected_price_index] if selected_fuel in station['carburants'] and len(station['carburants'][selected_fuel]) > selected_price_index else default_price
-        ] for station in heatmap_dataframe['stations']
-    ],
-    columns=['latitude', 'longitude', 'price'])
-
-    custom_color_scale = [
-        [0.0, 'blue'],
-        [0.2, 'green'],
-        [0.4, 'yellow'],
-        [0.6, 'orange'],
-        [0.8, 'red'],
-        [1.0, 'darkred']
-    ]
+        {
+            'latitude': [station['latitude'] for station in stations],
+            'longitude': [station['longitude'] for station in stations],
+            'price': [station['carburants'][selected_fuel][selected_price_index] for station in stations]
+        }
+    )
     
     # Update the figure using Plotly Express
     fig = px.density_mapbox(df, 
                         lat='latitude', 
                         lon='longitude', 
                         z='price', 
-                        radius=15,
+                        radius=6,
                         center=dict(lat=46.939, lon=2.945), 
                         zoom=4,
                         mapbox_style="open-street-map",
-                        color_continuous_scale=custom_color_scale,
-                        title=f'Carte des prix du {selected_fuel}')
+                        title=f'Moitié des stations avec le prix du {selected_fuel} le plus bas')
 
     # fig = go.Figure(data=go.Scattergeo(
     #     locationmode="ISO-3",
