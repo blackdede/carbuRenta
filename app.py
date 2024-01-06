@@ -161,9 +161,11 @@ def update_heatmap(selected_fuel, selected_price_index):
         {
             'latitude': [station['latitude'] for station in stations],
             'longitude': [station['longitude'] for station in stations],
-            'price': [station['carburants'][selected_fuel][selected_price_index] for station in stations]
+            'price': [station['carburants'][selected_fuel][selected_price_index] for station in stations],
+            'id': [station['id'] for station in stations],
         }
     )
+    df = df.query('price != 0') # Remove stations with no price
     
     # Update the figure using Plotly Express
     fig = px.density_mapbox(df, 
@@ -174,7 +176,8 @@ def update_heatmap(selected_fuel, selected_price_index):
                         center=dict(lat=46.939, lon=2.945), 
                         zoom=4,
                         mapbox_style="open-street-map",
-                        title=f'Moitié des stations avec le prix du {selected_fuel} le plus bas')
+                        title=f'Moitié des stations avec le prix du {selected_fuel} le plus bas',
+                        hover_name='id')
     
     return fig
 

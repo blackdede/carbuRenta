@@ -1,4 +1,5 @@
 from datetime import datetime, timedelta
+import os
 import re
 import xml.etree.cElementTree as ET
 from tqdm import tqdm
@@ -11,15 +12,16 @@ import json
 
 
 GRAPH_DIR = "graph_data/"
+# Use a session to keep the connection alive and speed up the requests
+session = requests.Session()
+pattern = re.compile(r'<strong>(.*?)</strong>', re.DOTALL)
 
 def get_name_station(id) -> str or None:
     try:
-        response = requests.get(f"https://www.prix-carburants.gouv.fr/map/recuperer_infos_pdv/{id}", headers={"x-requested-with": "XMLHttpRequest"})
-
+        response = session.get(f"https://www.prix-carburants.gouv.fr/map/recuperer_infos_pdv/{id}", headers={"x-requested-with": "XMLHttpRequest"})
         if response.status_code == 200:
             html_content = response.text
-
-            pattern = re.compile(r'<strong>(.*?)</strong>', re.DOTALL)
+            
             match = pattern.search(html_content)
 
             if match:
@@ -31,17 +33,25 @@ def get_name_station(id) -> str or None:
 def get_station_name(station_id):
     return station_id, get_name_station(station_id)
 
-def get_coordinate(angle: str, number_len: int) -> float:
+def get_coordinate(angle: str, isLongitude: bool) -> float:
     """Converts a string representing an angle to a float by keeping last 5 digits as decimals
-    >>> get_coordinate("4620100", 2)
+    >>> get_coordinate("4620100", False)
     46.201
-    >>> get_coordinate("519800", 1)
+    >>> get_coordinate("519800", True)
     5.198
-    >>> get_coordinate("4584829.0858556", 1)
-    4.584829
+    >>> get_coordinate("4584829.0858556", True)
+    45.84829
+    >>> get_coordinate("-105000", True)
+    -1.05
+    >>> get_coordinate("-64673.000000005", True)
+    -0.64673
+    
     """
-    a = angle.split(".")[0]
-    return float(a[:number_len] + "." + a[number_len:])
+    factor = 100000 if isLongitude else 10000 # beacause it's PTV_GEODECIMAL format
+    if not isLongitude and len(angle) == 7: # if latitude with 7 digits it's like latitude in PTV_GEODECIMAL format
+        factor = 100000
+
+    return round(float(angle)/factor,5)
 
 def parse_data() -> None:
     file_name = "PrixCarburants_annuel_2023.xml"
@@ -51,7 +61,7 @@ def parse_data() -> None:
     print("Send API request for each station name")
     gas_stations = []
     count = 0
-    maxx = 9999999
+    maxx = 999999
     station_ids = [int(pdv.get("id")) for pdv in root]
     station_ids = station_ids[:maxx]
     
@@ -165,8 +175,12 @@ def create_json_heatmap(gas_stations):
             result_json["stations"].append(station_json)
             pbar.update(1)
 
+    # Check if the folder exist
+    if not os.path.exists(GRAPH_DIR):
+        os.makedirs(GRAPH_DIR)
+
     # Save to file
-    with open(GRAPH_DIR + 'data.json', 'w') as outfile:
+    with open(os.path.join(GRAPH_DIR, 'data.json'), 'w') as outfile:
         json.dump(result_json, outfile)
 
 
@@ -180,3 +194,6 @@ if __name__ == "__main__":
 
     fin = perf_counter()
     print(f"Temps d'exécution : {fin - debut}s")
+    
+    # import doctest
+    # doctest.testmod()
