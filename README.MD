@@ -1,9 +1,11 @@
 # Installation
 
+```sh
 pip install -r requirements.txt
 
 python get_datas.py
 python main.py
+```
 
 # Sources
 
