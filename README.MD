@@ -11,7 +11,7 @@ python main.py
 
 Data is retrieved and stored locally via the get_datas script. This may take a few minutes
 
-To get the display afterwards, run main.py and go to ```sh http://127.0.0.1:8050/ ```
+To get the display afterwards, run main.py and go to ```http://127.0.0.1:8050/```
 
 # Sources
 
